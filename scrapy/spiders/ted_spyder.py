@@ -1,10 +1,5 @@
-import json
 import scrapy
-from datetime import datetime
-from elasticsearch import Elasticsearch
 import json
-
-es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 
 
 class TedSpider(scrapy.Spider):
@@ -38,25 +33,25 @@ class TedSpider(scrapy.Spider):
     def process_talk(self, response):
         items = response.xpath("//script[contains(., 'whotheyare')]/text()")
         txt: str = items.extract_first()
-        data = json.loads(txt[txt.index("{"): len(txt) - 1])
+        data = json.loads(txt[txt.index("{"): len(txt) - 1])["__INITIAL_DATA__"]
+
         speakers = []
-        for speaker in data["__INITIAL_DATA__"]["speakers"]:
+        for speaker in data["speakers"]:
             speakers.append({
                 "name": speaker["firstname"] + " " + speaker["lastname"],
                 "description": speaker["whotheyare"]
             })
 
-        refinedData = {
-            "viewed_count": data["__INITIAL_DATA__"]["viewed_count"],
-            "talk": {
-                "lang": data["__INITIAL_DATA__"]["requested_language_english_name"],
-                "description": data["__INITIAL_DATA__"]["description"],
-                "title": data["__INITIAL_DATA__"]["name"]
-            },
-            "speakers": speakers,
+        yield {
+            "title": data["name"],  # { "type": "text" }
+            "talk-description": data["description"],  # { "type": "text" }
+            "viewed_count": data["viewed_count"],  # { "type": "integer" }
+            "speakers": speakers,   '''  "properties": {
+                                              "name":  { "type": "text" },
+                                              "description":  { "type": "text" }
+                                          }
+                                    '''
+            "duration": data["talks"][0]["duration"],  # { "type": "integer" }
+            "recorded_at": data["talks"][0]["recorded_at"],  # { "type": "date" }
+            "tags": data["talks"][0]["tags"],  # { "type": "keyword" }
         }
-
-        result = es.index(index="ted-index", id=hash(refinedData["talk"]["title"]), body=refinedData)
-        print(result['result'])
-
-
